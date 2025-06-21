@@ -2,50 +2,35 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const multer = require('multer');
-const path = require('path');
 const app = express();
 
-// ✅ CORS Setup (Allow only your dashboard)
+// ✅ CORS Configuration for frontend hosted on Vercel
 app.use(cors({
-  origin: "https://k-flex-dashboard.vercel.app",
-  credentials: true
+  origin: "https://k-flex-dashboard.vercel.app", // <-- allow your frontend
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
 }));
 
 // Middleware
 app.use(bodyParser.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // static folder
 
-// ✅ MongoDB Connection
+// MongoDB Connection
 mongoose.connect("mongodb+srv://Kaberqadir:123@cluster0.blp7f13.mongodb.net/allproducts", {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('✅ Connected to MongoDB...'))
-.catch(err => console.error('❌ Could not connect to MongoDB...', err));
+  .then(() => console.log('✅ Connected to MongoDB'))
+  .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
-// ✅ Product Schema
+// Product Schema & Model
 const productSchema = new mongoose.Schema({
   name: String,
   description: String,
   price: Number,
-  image: String
+  image: String,
 });
 
 const Product = mongoose.model('Product', productSchema);
-
-// ✅ Multer Setup for File Uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-const upload = multer({ storage });
-
-// ✅ Routes
 
 // Get all products
 app.get('/api/products', async (req, res) => {
@@ -57,7 +42,7 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// Get single product
+// Get one product
 app.get('/api/products/:id', async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -68,51 +53,46 @@ app.get('/api/products/:id', async (req, res) => {
   }
 });
 
-// ✅ Add product
-app.post('/api/products', upload.single('image'), async (req, res) => {
+// Add new product
+app.post('/api/products', async (req, res) => {
   try {
-    const { name, description, price } = req.body;
-    const image = req.file ? `/uploads/${req.file.filename}` : "";
-
-    const product = new Product({ name, description, price, image });
-    await product.save();
-    res.status(201).json(product);
+    const { name, description, price, image } = req.body;
+    const newProduct = new Product({ name, description, price, image });
+    await newProduct.save();
+    res.status(201).json(newProduct);
   } catch (err) {
-    res.status(500).send('Failed to add product');
+    console.error(err);
+    res.status(400).send('Failed to create product');
   }
 });
 
-// ✅ Update product
-app.put('/api/products/:id', upload.single('image'), async (req, res) => {
+// Update product
+app.put('/api/products/:id', async (req, res) => {
   try {
-    const { name, description, price } = req.body;
-    const image = req.file ? `/uploads/${req.file.filename}` : undefined;
-
-    const updatedData = { name, description, price };
-    if (image) updatedData.image = image;
-
-    const updatedProduct = await Product.findByIdAndUpdate(req.params.id, updatedData, { new: true });
-    if (!updatedProduct) return res.status(404).send('Product not found');
-
-    res.json(updatedProduct);
+    const { name, description, price, image } = req.body;
+    const updated = await Product.findByIdAndUpdate(
+      req.params.id,
+      { name, description, price, image },
+      { new: true }
+    );
+    if (!updated) return res.status(404).send('Product not found');
+    res.json(updated);
   } catch (err) {
-    res.status(500).send('Failed to update product');
+    res.status(400).send('Failed to update');
   }
 });
 
-// ✅ Delete product
+// Delete product
 app.delete('/api/products/:id', async (req, res) => {
   try {
     const deleted = await Product.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).send('Product not found');
-    res.json({ message: 'Product deleted' });
+    res.json({ message: 'Deleted successfully' });
   } catch (err) {
-    res.status(500).send('Failed to delete product');
+    res.status(500).send('Failed to delete');
   }
 });
 
-// ✅ Server Listen (only for local dev)
+// Listen
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
-module.exports = app;
